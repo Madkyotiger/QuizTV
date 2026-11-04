@@ -1,0 +1,16 @@
+{
+ "enabled": true,
+ "windows": [
+  "FRI 16:00-SUN 19:00"
+ ],
+ "session_min": 30,
+ "rest_min": 10,
+ "weekday_cap_min": 60,
+ "weekend_cap_min": 120,
+ "gap_reset_min": 20,
+ "mix": {
+  "数学": 3,
+  "英语": 2
+ },
+ "child_name": "宝贝"
+}

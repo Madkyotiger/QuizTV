@@ -1,0 +1,14 @@
+# 不进 git：密码、本机设置、工具链、生成物、回退安装包
+config/gate.json
+custom-questions/questions.yaml
+public-export/
+config/secret.json
+config/device.env
+toolchain/
+rollback/
+custom-questions/build/
+tv-app/launcher/app/src/main/assets/quiz/audio/
+__pycache__/
+*.pyc
+*.apk
+.DS_Store
