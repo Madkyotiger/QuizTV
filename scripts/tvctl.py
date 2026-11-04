@@ -25,6 +25,8 @@ INT_KEYS = {"session_min", "rest_min", "weekday_cap_min", "weekend_cap_min", "ga
 
 
 def load():
+    if not CFG.exists():
+        sys.exit("还没有 config/gate.json：先 cp config/gate.example.json config/gate.json（密码另放 config/secret.json）")
     return json.loads(CFG.read_text(encoding="utf-8"))
 
 
