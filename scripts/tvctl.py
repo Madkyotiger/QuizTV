@@ -21,7 +21,7 @@ from quiztv import DIR, ROOT, adb, connect, record
 
 CFG = ROOT / "config" / "gate.json"
 SECRET = ROOT / "config" / "secret.json"
-INT_KEYS = {"session_min", "rest_min", "weekday_cap_min", "weekend_cap_min", "gap_reset_min"}
+INT_KEYS = {"session_min", "rest_min", "weekday_cap_min", "weekend_cap_min", "gap_reset_min", "slot_min"}
 
 
 def load():
@@ -64,7 +64,7 @@ def validate(c):
             sys.exit(f"{k} 要在 1–600 分钟之间")
     if "pin" in c and not (len(str(c["pin"])) == 4 and str(c["pin"]).isdigit()):
         sys.exit("家长密码要是四位数字")
-    for w in c.get("windows", []):
+    for w in c.get("windows", []) + c.get("slots", []):
         a, b = [x.strip().split() for x in w.split("-")]
         for d, hm in (a, b):
             assert d.upper() in ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"), w
@@ -79,8 +79,10 @@ def cmd_set(pairs):
         k, _, v = p.partition("=")
         if k in INT_KEYS:
             c[k] = int(v)
-        elif k == "windows":
+        elif k in ("windows", "slots"):
             c[k] = [w.strip() for w in v.split(";") if w.strip()]
+            if not c[k]:
+                c.pop(k)
         elif k == "mix":
             c[k] = {s.split(":")[0].strip(): int(s.split(":")[1]) for s in v.split(",") if s.strip()}
         elif k == "enabled":

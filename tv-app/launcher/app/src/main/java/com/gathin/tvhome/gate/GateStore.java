@@ -24,6 +24,7 @@ public final class GateStore {
     private static long enableAfter = 0;
     private static long testUntil = 0;
     private static String[] windows = new String[0];
+    private static String[] slots = new String[0];
     private static java.util.LinkedHashMap<String, Integer> mix = defaultMix();
     private static long customStamp = -1;
 
@@ -50,6 +51,9 @@ public final class GateStore {
             rules.bonusMs = p.getLong("bonus", 0);
             rules.warned5 = p.getBoolean("warned5", false);
             rules.warned1 = p.getBoolean("warned1", false);
+            rules.usedSlotKey = p.getString("usedSlot", "");
+            rules.slotUsedMs = p.getLong("slotUsed", 0);
+            rules.bonusUntil = p.getLong("bonusUntil", 0);
             rules.parentMode = false; // a process start always follows a standby or a boot here
         }
         loadConfig(c);
@@ -68,7 +72,33 @@ public final class GateStore {
                 .putLong("bonus", rules.bonusMs)
                 .putBoolean("warned5", rules.warned5)
                 .putBoolean("warned1", rules.warned1)
+                .putString("usedSlot", rules.usedSlotKey)
+                .putLong("slotUsed", rules.slotUsedMs)
+                .putLong("bonusUntil", rules.bonusUntil)
                 .apply();
+    }
+
+    /** Theme of the current round; quiz, rest and limit pages of one round share it. */
+    public static String theme(Context c) {
+        return prefs(c).getString("theme", "star");
+    }
+
+    /** A new quiz round picks a theme and a voice at random (2026-11-07: two of each). */
+    public static String newRoundTheme(Context c) {
+        java.util.Random rnd = new java.util.Random();
+        String t = GatePalette.THEMES[rnd.nextInt(GatePalette.THEMES.length)];
+        String v = VOICES[rnd.nextInt(VOICES.length)];
+        prefs(c).edit().putString("theme", t).putString("voice", v).apply();
+        return t;
+    }
+
+    /** "" = the first voice (assets/quiz/audio/), "sister" = the gentler young-sister voice (audio/sister/). */
+    static final String[] VOICES = {"", "sister"};
+
+    /** Asset path of a spoken clip (welcome, warn5, warn1, bye) in this round's voice. */
+    public static String audio(Context c, String name) {
+        String v = prefs(c).getString("voice", "");
+        return "quiz/audio/" + (v.isEmpty() ? "" : v + "/") + name + ".ogg";
     }
 
     public static SharedPreferences prefs(Context c) {
@@ -107,6 +137,10 @@ public final class GateStore {
             org.json.JSONArray wa = o.optJSONArray("windows");
             windows = new String[wa == null ? 0 : wa.length()];
             for (int i = 0; i < windows.length; i++) windows[i] = wa.getString(i);
+            org.json.JSONArray sa = o.optJSONArray("slots");
+            slots = new String[sa == null ? 0 : sa.length()];
+            for (int i = 0; i < slots.length; i++) slots[i] = sa.getString(i);
+            rules.slotMs = o.optLong("slot_min", 30) * GateRules.MIN;
             pin = o.optString("pin", pin);
             childName = o.optString("child_name", "宝贝");
             rules.sessionMs = o.optLong("session_min", 30) * GateRules.MIN;
@@ -121,7 +155,7 @@ public final class GateStore {
                 p.edit().clear().putString("resetToken", tok).commit();
                 GateRules fresh = new GateRules();
                 fresh.sessionMs = rules.sessionMs; fresh.restMs = rules.restMs; fresh.capWeekdayMs = rules.capWeekdayMs;
-                fresh.capWeekendMs = rules.capWeekendMs; fresh.gapResetMs = rules.gapResetMs;
+                fresh.capWeekendMs = rules.capWeekendMs; fresh.gapResetMs = rules.gapResetMs; fresh.slotMs = rules.slotMs;
                 rules = fresh;
             }
         } catch (Exception ignored) {
@@ -138,6 +172,28 @@ public final class GateStore {
         Calendar cal = Calendar.getInstance();
         int dow = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1; // Monday=1 .. Sunday=7
         return GateRules.inWindows(windows, dow, cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE));
+    }
+
+    /** Tell the rules which slot "now" is in (family rule 2026-11-07). No slots configured = old behaviour. */
+    public static synchronized void prepareSlot(Context c, long now) {
+        GateRules r = rules(c);
+        if (slots.length == 0) { r.slotKey = null; r.slotEndAt = 0; return; }
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(now);
+        int dow = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1, min = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE);
+        int i = GateRules.slotIndex(slots, dow, min);
+        if (i < 0) { r.slotKey = ""; r.slotEndAt = 0; return; }
+        r.slotKey = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date(now)) + "#" + i;
+        long minuteStart = now - (cal.get(Calendar.SECOND) * 1000L + cal.get(Calendar.MILLISECOND));
+        r.slotEndAt = minuteStart + GateRules.minutesToSlotEnd(slots, i, dow, min) * GateRules.MIN;
+    }
+
+    /** "13:30" when there is another slot later today, else null (then the screen says "明天"). */
+    public static synchronized String nextSlotToday(Context c) {
+        rules(c);
+        Calendar cal = Calendar.getInstance();
+        int dow = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1;
+        return GateRules.nextSlotToday(slots, dow, cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE));
     }
 
     public static synchronized java.util.Map<String, Integer> mix(Context c) {

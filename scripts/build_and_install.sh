@@ -37,3 +37,8 @@ got=$($ADB -s $TV shell 'sha256sum $(pm path com.ts.launcher | cut -d: -f2)' | c
 [ "$want" = "$got" ] || { echo "电视上的程序和刚编译的不一致"; exit 1; }
 svc=$($ADB -s $TV shell dumpsys activity services com.ts.launcher | grep -c 'gate.GateService' || true)
 echo "已安装并读回一致（${want:0:16}…）；守门服务运行中：$([ "$svc" -gt 0 ] && echo 是 || echo 否)"
+
+# 维护者本机：装机成功后把最新版同步到公开仓库（有 public-export/.git 和 publish_public.sh 才跑；失败不影响电视）
+if [ -d "$ROOT/public-export/.git" ] && [ -f "$ROOT/scripts/publish_public.sh" ] && [ -z "${QUIZTV_NO_PUBLISH:-}" ]; then
+  bash "$ROOT/scripts/publish_public.sh" || echo "注意：公开仓库没同步成功（电视已装好），看上面的原因"
+fi

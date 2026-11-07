@@ -3,6 +3,7 @@
 题目写在 ../custom-questions/questions.yaml（格式见该文件开头的说明）。
 用法：python3 -I add_questions.py check   只检查格式，列出有问题的题
       python3 -I add_questions.py push    检查 → 生成音频 → 推送 custom-bank.json 和音频 → 读回
+      python3 -I add_questions.py push --no-audio  只推文字题库并读回，不生成或上传语音
 同一道题的编号由题目文字决定（K+6 位），改了题目文字会变成新题。
 新科目（比如语文）要出现在答题里，还要用 tvctl.py set mix="数学:2,英语:2,语文:1" 打开。
 """
@@ -75,7 +76,7 @@ def adb(*a):
     return _adb(*a, check=False, timeout=300)
 
 
-def main(mode):
+def main(mode, audio=True):
     items, problems = load_items()
     for p in problems:
         print("有问题：", p)
@@ -88,10 +89,12 @@ def main(mode):
     OUT.mkdir(parents=True, exist_ok=True)
     bank = OUT / "custom-bank.json"
     bank.write_text(json.dumps({"version": "custom", "items": items}, ensure_ascii=False), encoding="utf-8")
-    asyncio.run(make_audio(items))
+    if audio:
+        asyncio.run(make_audio(items))
     connect()  # 连不上会退出；题目已在本地生成好，连上后再运行一次 push 即可
-    adb("shell", f"mkdir -p {DIR}/audio")
-    for f in sorted((OUT / "audio").glob("K*.mp3")):
+    if audio:
+        adb("shell", f"mkdir -p {DIR}/audio")
+    for f in (sorted((OUT / "audio").glob("K*.mp3")) if audio else []):
         if f.stem in {i["id"] for i in items}:
             r = adb("push", str(f), f"{DIR}/audio/{f.name}")
             if r.returncode != 0:
@@ -108,4 +111,4 @@ def main(mode):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "check")
+    main(sys.argv[1] if len(sys.argv) > 1 else "check", audio="--no-audio" not in sys.argv[2:])

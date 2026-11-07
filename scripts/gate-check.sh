@@ -14,7 +14,7 @@ echo "SINCE $SINCE"
 echo "== power: $($ADB -s $TV shell dumpsys power | grep -o 'mWakefulness=[A-Za-z]*')"
 echo "== gate service running: $($ADB -s $TV shell dumpsys activity services com.ts.launcher | grep -c 'gate.GateService')"
 echo "== home: $($ADB -s $TV shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -1)"
-echo "== gate.json: $($ADB -s $TV shell cat /sdcard/Android/data/com.ts.launcher/files/gate.json | sed 's/"pin":"[0-9]*"/"pin":"****"/')"
+echo "== gate.json: $($ADB -s $TV shell cat /sdcard/Android/data/com.ts.launcher/files/gate.json | sed 's/"pin": *"[0-9]*"/"pin":"****"/')"
 echo "== gate log since $SINCE"
 $ADB -s $TV shell cat /sdcard/Android/data/com.ts.launcher/files/gate-log.jsonl 2>/dev/null | awk -v s="$SINCE" -F'"t":"' '{split($2,a,"\""); if (a[1] >= s) print}'
 echo "== foreground timeline since $SINCE"

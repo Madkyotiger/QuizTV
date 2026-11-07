@@ -91,6 +91,82 @@ public class GateRulesTest {
         assertEquals(GateRules.Screen.QUIZ, r.tick(1_001_000, true, "2026-11-05", false));
     }
 
+    @Test public void thirtyMinutesThenFullTenMinuteBlockingRest() {
+        GateRules r = new GateRules();
+        r.sessionMs = 30 * MIN;
+        r.restMs = 10 * MIN;
+        long[] now = {1_000_000};
+        r.tick(now[0], true, "2026-11-04", true);
+        r.unlock(now[0]);
+        assertEquals(GateRules.Screen.REST, run(r, now, 30 * MIN, true));
+        long until = r.restUntil;
+        assertEquals(now[0] + 10 * MIN, until);
+        for (long t = now[0] + S; t < until; t += S) {
+            assertEquals("Rest may not briefly release TV", GateRules.Screen.REST,
+                    r.tick(t, true, "2026-11-04", true));
+            assertFalse(r.unlocked);
+            assertEquals(until, r.restUntil);
+        }
+        assertEquals(GateRules.Screen.QUIZ, r.tick(until, true, "2026-11-04", true));
+    }
+
+    @Test public void lateQuizCompletionCannotUnlockAnActiveRest() {
+        GateRules r = new GateRules();
+        long now = 1_000_000;
+        r.dayKey = "2026-11-04";
+        r.restUntil = now + 10 * MIN;
+        r.unlocked = false;
+        r.unlock(now + S); // stale UI callback after the rest page has appeared
+        assertFalse("A quiz callback must not unlock an active rest", r.unlocked);
+        assertEquals(now + 10 * MIN, r.restUntil);
+        assertEquals(GateRules.Screen.REST, r.tick(now + 2 * S, true, "2026-11-04", true));
+        assertEquals(GateRules.Screen.QUIZ, r.tick(r.restUntil, true, "2026-11-04", true));
+    }
+
+    @Test public void standbyDoesNotCancelOrRestartRestDeadline() {
+        GateRules r = new GateRules();
+        long now = 1_000_000;
+        r.dayKey = "2026-11-04";
+        r.restUntil = now + 10 * MIN;
+        assertEquals(GateRules.Screen.NONE, r.tick(now + MIN, false, "2026-11-04", true));
+        assertEquals(GateRules.Screen.REST, r.tick(now + 2 * MIN, true, "2026-11-04", true));
+        assertEquals(now + 10 * MIN, r.restUntil);
+    }
+
+    @Test public void restReassertsEvenWhenCachedActivityLooksVisible() {
+        assertTrue(GateRules.shouldReassert(GateRules.Screen.REST, GateRules.Screen.REST));
+        assertTrue(GateRules.shouldReassert(GateRules.Screen.REST, null));
+        assertTrue(GateRules.shouldReassert(GateRules.Screen.REST, GateRules.Screen.QUIZ));
+    }
+
+    @Test public void otherScreensDoNotRelaunchUnnecessarily() {
+        assertFalse(GateRules.shouldReassert(GateRules.Screen.NONE, null));
+        assertFalse(GateRules.shouldReassert(GateRules.Screen.QUIZ, GateRules.Screen.QUIZ));
+        assertTrue(GateRules.shouldReassert(GateRules.Screen.QUIZ, null));
+    }
+
+    @Test public void staleUnlockedFlagCannotSurviveRest() {
+        GateRules r = new GateRules();
+        long now = 1_000_000;
+        r.dayKey = "2026-11-04";
+        r.restUntil = now + 10 * MIN;
+        r.unlocked = true;
+        assertEquals(GateRules.Screen.REST, r.tick(now, true, "2026-11-04", true));
+        assertFalse(r.unlocked);
+        assertEquals(GateRules.Screen.QUIZ, r.tick(r.restUntil, true, "2026-11-04", true));
+    }
+
+    @Test public void aNewQuizCanUnlockAtButNotBeforeTheRestDeadline() {
+        GateRules r = new GateRules();
+        long now = 1_000_000;
+        r.restUntil = now + 10 * MIN;
+        assertFalse(r.unlock(r.restUntil - 1));
+        long deadline = r.restUntil;
+        assertTrue(r.unlock(deadline));
+        assertTrue(r.unlocked);
+        assertEquals(0, r.restUntil);
+    }
+
     @Test public void weekendWindow() {
         String[] w = {"FRI 16:00-SUN 19:00"};
         assertFalse(GateRules.inWindows(w, 3, 20 * 60));      // Wednesday evening
