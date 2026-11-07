@@ -145,4 +145,6 @@
     <string name="tile_add_to_dock">添加到程序坞</string>
     <string name="tile_move">移动</string>
     <string name="tile_replace_in_dock">替换为其他应用</string>
+    <string name="gate_keepalive_name">答题守门保活</string>
+    <string name="gate_keepalive_description">让答题守门在内存小的电视上不被系统清掉。不读取任何内容，不拦截按键。</string>
 </resources>

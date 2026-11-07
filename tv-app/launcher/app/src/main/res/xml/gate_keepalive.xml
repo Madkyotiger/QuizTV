@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keep-alive only: no accessibilityEventTypes (0), no flags, no key filtering, no window content.
+     The system never calls into the app; the binding alone raises the process priority. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/gate_keepalive_description" />

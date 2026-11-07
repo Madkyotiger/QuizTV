@@ -92,4 +92,6 @@
         <item quantity="other">%1$d 個應用程式</item>
     </plurals>
     <string name="greeting_with_name">%1$s，%2$s</string>
+    <string name="gate_keepalive_name">答題守門保活</string>
+    <string name="gate_keepalive_description">讓答題守門在記憶體小的電視上不被系統清掉。不讀取任何內容，不攔截按鍵。</string>
 </resources>

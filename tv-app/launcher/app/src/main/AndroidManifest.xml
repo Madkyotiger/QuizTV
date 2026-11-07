@@ -263,6 +263,19 @@
         <service
             android:name=".gate.GateService"
             android:exported="false" />
+        <!-- Optional keep-alive for low-memory TVs; enabled over adb, see GateKeepAliveService. -->
+        <service
+            android:name=".gate.GateKeepAliveService"
+            android:label="@string/gate_keepalive_name"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/gate_keepalive" />
+        </service>
         <receiver
             android:name=".gate.GateBootReceiver"
             android:exported="true">

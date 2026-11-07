@@ -128,6 +128,9 @@ public final class GateActivity extends Activity {
     protected void onDestroy() {
         stopIntroAudio();
         h.removeCallbacksAndMessages(null);
+        // While the child watches, the process should be as small as possible (low-memory killer picks the
+        // largest process at a level): drop the ~4 MB background and the two fonts; the next quiz reloads them.
+        bgBitmap = null; bgKey = null; kaiFont = null; roundFont = null;
         super.onDestroy();
     }
 

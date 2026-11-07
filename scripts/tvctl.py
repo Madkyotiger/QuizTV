@@ -15,7 +15,7 @@
 规则：config/gate.json（当前源，不含密码）；家长密码：config/secret.json（不进 git）。
 电视上的副本是两者合并：/sdcard/Android/data/com.ts.launcher/files/gate.json
 """
-import json, pathlib, sys, tempfile, time
+import json, re, pathlib, sys, tempfile, time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))  # -I 模式不会自动加脚本目录
 from quiztv import DIR, ROOT, adb, connect, record
@@ -118,8 +118,10 @@ def cmd_show():
         print("电视上一致" if got == c else "电视上的规则和本地不一致：" + json.dumps(public(got), ensure_ascii=False))
     except Exception:
         print("电视上没有读到 gate.json")
-    out = adb("shell", "dumpsys", "activity", "services", "com.ts.launcher").stdout
-    print("守门服务在运行" if "gate.GateService" in out else "守门服务没在运行")
+    # 系统杀掉进程后服务会挂在“Restarting”里，dumpsys 仍列出 GateService；要进程在、服务绑在进程上才算在运行
+    out = adb("shell", "dumpsys activity services com.ts.launcher; echo pid=$(pidof com.ts.launcher)").stdout
+    alive = re.search(r"app=ProcessRecord\{[^}]*com\.ts\.launcher", out) is not None and re.search(r"pid=\d", out) is not None
+    print("守门服务在运行" if alive else "守门服务没在运行（进程不在或在等系统重启）")
 
 
 def cmd_reset():

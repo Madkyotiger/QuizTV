@@ -69,3 +69,4 @@
 
 - 重启后 ADB 调试会自动关掉，下次改规则前请家长在电视上再打开。
 - 电视只认第一次点“允许”的那台电脑（`~/.android/adbkey`），换电脑要重新允许。
+- 内存小的电视（如 MiTV-MFTP0，`getprop ro.config.low_ram` 为 true）看视频时，系统会因内存不够杀掉守门（`logcat -b events` 里 `am_proc_died … com.ts.launcher,200,3`），答题页就不弹了。可选的补救：打开“答题守门保活”——`settings get secure enabled_accessibility_services` 先读出原有值，在后面加 `:com.ts.launcher/com.gathin.tvhome.gate.GateKeepAliveService` 写回（不要覆盖原有服务），再 `settings put secure accessibility_enabled 1`。它不读任何内容、不拦按键，只让守门的优先级从 200 升到 100。每次待机后系统会把它移出列表，要再打开一次（电脑常开的话可以每 30 秒检查一次）。
