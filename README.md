@@ -61,7 +61,7 @@ python3 -I scripts/tvctl.py reset                 # 测完清零计时和“最�
 
 ## 安装
 
-最省事：从本仓库 [Releases](../../releases) 下载编译好的 `QuizTV-*.apk`，不用装开发工具。需要一台电脑和电视在同一个 Wi-Fi、电视打开 ADB 调试（小米：设置 → 账号与安全 → ADB 调试），电脑上有 `adb`（Android 官方 platform-tools）和 Python 3。
+最省事：从本仓库 [Releases](../../releases) 下载编译好的 `QuizTV-*.apk`，不用装开发工具。有能操作电脑的 AI 助手，就让它照 `AGENTS.md`「第一次装到电视」一步步做（含家长要在电视上按的几步、设默认桌面、装完怎么试）；下面是给自己动手的人的简版。需要一台电脑和电视在同一个 Wi-Fi、电视打开 ADB 调试（小米：设置 → 账号与安全 → ADB 调试），电脑上有 `adb`（Android 官方 platform-tools）和 Python 3。
 
 ```bash
 adb connect 电视IP:5555              # 第一次连接，电视上会弹窗，选“允许”

@@ -2,21 +2,65 @@
 
 你在帮一位家长用 QuizTV（孩子先答题才能看电视）。家长通常不懂命令行：每步用一句大白话说你要做什么，需要家长在电视上按遥控器时，说清楚按哪里、看到什么算对。
 
+## 第一次装到电视（照顺序做，每步确认结果再往下）
+
+**0. 先判断能不能装**
+- 电视得是安卓系统（Android 8 及以上；小米、红米、海信、TCL、长虹等大多是）。华为鸿蒙智慧屏、苹果电视、三星／LG 自家系统装不了，直接告诉家长。
+- 问家长电视品牌和型号（设置 →“关于”里有），在 `tv-app/docs/devices/` 和 `tv-app/examples/` 找同型号记录，有就照它的做法，尤其是设默认桌面那一步。
+
+**1. 家长在电视上用遥控器做（你一句一句告诉她）**
+1. 电视连家里 Wi-Fi，和电脑同一个网络（不能是“访客网络”）。
+2. 打开 ADB 调试。小米／红米：设置 → 账号与安全 → ADB 调试 → 允许。其他品牌多在“开发者选项”里：设置 →“关于”里连按“版本号”7 次打开开发者选项，再找“ADB 调试”或“网络调试”；找不到看上面同型号记录。
+3. 查电视 IP：设置 → 网络，记下形如 192.168.1.20 的地址。
+
+**2. 你在电脑上准备**
+- 装 Android 官方 platform-tools（里面有 `adb`）、Python 3 和 `pyyaml`（`pip install pyyaml`）。
+- 下载本仓库和 Releases 里最新的 `QuizTV-*.apk`。不用装 JDK 和 Android SDK，除非要改代码。
+
+**3. 连上电视**
+1. `adb connect 电视IP:5555`。这时电视上会弹“允许调试吗”：请家长勾上“始终允许”，再选“允许”。
+2. `adb devices` 里这台电视要显示 `device`。显示 `unauthorized` 是电视上没点允许；连不上多半是 ADB 调试没开或不在同一网络。
+
+**4. 安装并设成默认桌面**
+1. `adb shell pm path com.ts.launcher` 必须什么都不输出。有输出说明电视上已有同名程序，停下来告诉家长，不要覆盖。
+2. 记下原来的桌面，回退用：`adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME`，最后一行就是。
+3. `adb install -r QuizTV-*.apk`。
+4. `adb shell cmd package set-home-activity --user 0 com.ts.launcher/com.gathin.tvhome.MainActivity`，再跑第 2 步的命令，最后一行要变成 `com.ts.launcher/com.gathin.tvhome.MainActivity`。
+5. **不要停用、卸载电视原来的桌面**（小米的 PatchWall 必须保留），也不要跑 `tv-app/launcher/build-and-install.sh`，它默认会停用原桌面。小米只认白名单里的包名当桌面，所以包名固定是 `com.ts.launcher`；别的品牌如果设不成，看同型号记录。
+
+**5. 写设置并推到电视**
+1. 复制 `config/device.example.env`、`config/gate.example.json`、`config/secret.example.json`，去掉 `.example`。
+2. 问家长：四位家长密码、孩子怎么称呼、哪几天几点要先答题（`windows`）、要不要分段看（`slots`、`slot_min`）、每天最多看多久、每轮几道题各科几道（`mix`）。密码只写进 `secret.json`。
+3. `python3 -I scripts/tvctl.py push`，看到“读回一致”才算成功。
+4. 内置题库是上海二年级数学和英语。孩子不是二年级，或者家长想按错题本出题，就按下面“按错题出题”加题，再用 `mix` 打开对应科目。
+
+**6. 和家长一起试一遍，都通过才说“装好了”**
+1. 临时打开守门：`python3 -I scripts/tvctl.py set test_until="今天日期 再过一小时，如 2026-11-08 15:00"`。
+2. 请家长依次试：按遥控器 Home 键、直接打开常用的视频 App、按电源键待机再唤醒。每次都要出答题页。答完一轮要能正常看电视。
+3. 请家长把电视关机再开一次，确认能正常开机、出答题页或桌面。小米重启后 ADB 调试会自己关掉，这是正常的。
+4. 测完：`tvctl.py set test_until=`，再 `tvctl.py reset` 清掉测试的计时和答题记录。
+5. 有一步拦不住，就告诉家长这台电视拦不住哪一种入口，不要说装好了。
+
+**7. 交代给家长**
+- 遥控器上的家长按钮：输密码可以“大人看电视”（到下次待机前不限时）或给孩子加 20 分钟。
+- 以后想改时间、加题，再找你；小米电视要先在电视上重新打开 ADB 调试。
+- 想停用：最快是 `tvctl.py set enabled=false`。想彻底换回原来的桌面：`adb shell cmd package set-home-activity --user 0 <第 4 步记下的原桌面>`，确认换回后才能卸载本程序。
+
 ## 常见任务
 
 | 家长说 | 你做 |
 |---|---|
-| 装到电视上 | 按 README“安装”：先确认电视和电脑在同一 Wi-Fi、电视已开 ADB 调试；`adb connect IP:5555`（让家长在电视上点“允许”）；装 Releases 里最新的 APK；复制三份 `config/*.example.*` 去掉 `.example`，问家长要电视 IP、四位家长密码、孩子称呼；`python3 -I scripts/tvctl.py push`；再把默认桌面设成这个程序：先读 `tv-app/AGENTS.md`（上游 CleanYourTV 的安全规则，例如确认新桌面生效前不停用原桌面、不碰工厂菜单），再找 `tv-app/docs/devices/` 里同品牌同型号的记录照做（已有 80 多台电视的实测记录，小米、海信、长虹、飞利浦等）。小米只允许白名单包名当桌面，所以包名固定是 `com.ts.launcher`。最后用 `tvctl.py show` 确认“一致”和“守门服务在运行” |
 | 按错题出题 | 读家长给的错题（照片、文字都行），写进 `custom-questions/questions.yaml`（格式见 `questions.example.yaml`）：同一知识点换数字和情境出新题，不照抄原题；错误选项用孩子真会犯的错；讲解一两句。然后 `add_questions.py check`，通过后 `add_questions.py push --no-audio`。新科目要 `tvctl.py set mix=...` 才会出现 |
 | 改时间／每次几道题 | `tvctl.py set ...`，键见 README“规则”表；改完看输出里的“读回一致” |
 | 孩子说电视坏了／看不了 | 先 `tvctl.py show` 和 `tvctl.py log 30` 看是不是规则本来就在锁（时段外、到上限），再判断 |
+| 升级到新版 | 下载 Releases 最新 APK，`adb install -r`（同一把签名，设置和记录保留），再 `tvctl.py show` |
 
 ## 不要做
 
 - 不要 `adb uninstall com.ts.launcher`，也不要换签名重装：它是默认桌面，卸载会丢设置。升级只用 `adb install -r`。
 - 不要把家长密码写进聊天记录、`gate.json` 或任何会上传的地方；只放 `config/secret.json`。
 - 不要说“装好了”，除非 `tvctl.py show` 显示一致且守门服务在运行。
-- 只在小米 MiTV-MFTP0 上完整测过。其他品牌装完要和家长一起试：按 Home 键、直接开视频 App、待机再唤醒，答题页都要出来，否则告诉家长这台电视拦不住。
+- 只在小米 MiTV-MFTP0 上完整测过；脚本在 Windows 上没测过（`.sh` 脚本要 Git Bash 或 WSL，`tvctl.py` 等 Python 工具应能直接用）。
 
 ## 小米电视的坑
 
