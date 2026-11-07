@@ -27,6 +27,8 @@
 | `windows` | 哪些时段要答题（周循环，多段）；不在时段内电视不受限 | `["FRI 16:00-SUN 19:00"]` |
 | `slots` / `slot_min` | 可选：生效时段里只有这些段能看，每段先答题、最多看几分钟；不写就不分段 | `["SAT 08:00-SAT 11:30", "SAT 13:30-SAT 17:00"]` / 30 |
 | `mix` | 每次各科几道 | `{"数学": 3, "英语": 2}` |
+| `balanced_quiz` | 可选：保持mix的总题数，各科均分，余题逐轮轮换；默认关闭 | `true` |
+| `mastery_enabled` | 可选：已通过的知识点退出抽题，优先未接触／练得少的知识点；默认关闭 | `true` |
 | `session_min` / `rest_min` | 连续看多久、休息多久 | 30 / 10 |
 | `weekday_cap_min` / `weekend_cap_min` | 周一到周五、周六日每天上限 | 60 / 120 |
 | `gap_reset_min` | 关机超过多久，下次开机算新的一段 | 20 |
@@ -42,6 +44,7 @@ python3 -I scripts/tvctl.py set session_min=30 rest_min=10
 python3 -I scripts/tvctl.py set windows="FRI 16:00-SUN 20:30"
 python3 -I scripts/tvctl.py set slots="SAT 08:00-SAT 11:30;SAT 13:30-SAT 17:00" slot_min=30   # slots= 留空即取消分段
 python3 -I scripts/tvctl.py set mix="数学:2,英语:2,语文:1"
+python3 -I scripts/tvctl.py set mix="英语:4,语文:3,数学:3" balanced_quiz=true mastery_enabled=true
 python3 -I scripts/tvctl.py set pin=1234          # 不回显
 python3 -I scripts/tvctl.py show                  # 本地和电视上一致吗、守门服务在跑吗
 python3 -I scripts/tvctl.py log 50                # 最近的答题／解锁／休息记录
@@ -49,6 +52,12 @@ python3 -I scripts/tvctl.py reset                 # 测完清零计时和“最�
 ```
 
 每条命令都会推到电视并**读回**，一致才算成功，电视 1 秒内生效；如果项目是 git 仓库，还会自动提交一笔（作者按运行它的 Hermes Profile 区分）。
+
+### 可选：按知识点通过
+
+启用`mastery_enabled`后，同知识点连续3轮首次评估正确、且涉及至少2道不同题，整类退出日常抽题与同类重试；同轮补答不重复计入。状态保存在原应用数据内，重启不清零；测试计时重置也不清除已通过状态。旧的可能包含家长试用的答题日志不会自动计入新的通过标准。
+
+题目按科目与`kp`分组，每个知识点至少准备两道真正不同的题。某科全部通过则将题额分给其余未通过科目；全部科目通过后免答，但仍遵守观看时段、休息及每日上限。空题库或缺少配置科目的题目不算全部通过。开启均分时，`mix`的各科数值相加只决定每轮总题数，不再固定每科题额。
 
 ## 加题目（不用重新编译）
 

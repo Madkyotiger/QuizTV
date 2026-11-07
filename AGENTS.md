@@ -10,8 +10,8 @@
 
 **1. 家长在电视上用遥控器做（你一句一句告诉她）**
 1. 电视连家里 Wi-Fi，和电脑同一个网络（不能是“访客网络”）。
-2. 打开 ADB 调试。小米／红米：设置 → 账号与安全 → ADB 调试 → 允许。其他品牌多在“开发者选项”里：设置 →“关于”里连按“版本号”7 次打开开发者选项，再找“ADB 调试”或“网络调试”；找不到看上面同型号记录。
-3. 查电视 IP：设置 → 网络，记下形如 192.168.1.20 的地址。
+2. 打开 ADB 调试。这个开关默认是隐藏的，要先打开开发者模式。小米／红米：设置 → 关于 → 选中“产品型号”，连续按遥控器“确定”7 次以上，直到提示进入开发者模式；再回到 设置 → 账号与安全，这时才会出现“ADB 调试”，选“允许”（小米官方说明 mi.com/global/support/article/KA-06513）。其他品牌多是 设置 →“关于”里连按“版本号”7 次，再到“开发者选项”打开“USB 调试”或“网络调试”；找不到看上面同型号记录，或请家长拍设置页照片给你。
+3. 查电视 IP：小米 设置 → 网络（或“网络与连接”）→ 点开正在用的 Wi-Fi → IP 地址，形如 192.168.1.20。
 
 **2. 你在电脑上准备**
 - 先确认你自己跑在家长的这台电脑上（“本地电脑”模式），不是云端沙箱：云端连不到家里电视。是云端就请家长切换。
@@ -21,13 +21,13 @@
 - 安装包用 Releases 里最新的 `QuizTV-*.apk`；家长是从网盘下载的，压缩包里已经带了 APK。不用装 JDK 和 Android SDK，除非要改代码。
 
 **3. 连上电视**
-1. `adb connect 电视IP:5555`。这时电视上会弹“允许调试吗”：请家长勾上“始终允许”，再选“允许”。
+1. `adb connect 电视IP:5555`。这时电视上会弹“允许调试吗”：请家长用方向键先选中“一律允许这台电脑”的小框按“确定”打勾，再选“允许”。弹窗一会儿会自己消失，没点上就重连一次。
 2. `adb devices` 里这台电视要显示 `device`。显示 `unauthorized` 是电视上没点允许；连不上多半是 ADB 调试没开或不在同一网络。
 
 **4. 安装并设成默认桌面**
 1. `adb shell pm path com.ts.launcher` 必须什么都不输出。有输出说明电视上已有同名程序，停下来告诉家长，不要覆盖。
 2. 记下原来的桌面，回退用：`adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME`，最后一行就是。
-3. `adb install -r QuizTV-*.apk`。
+3. `adb install -r QuizTV-*.apk`。小米上如果被拒绝安装，请家长在 设置 → 账号与安全 打开“安装未知来源的应用”再装。
 4. `adb shell cmd package set-home-activity --user 0 com.ts.launcher/com.gathin.tvhome.MainActivity`，再跑第 2 步的命令，最后一行要变成 `com.ts.launcher/com.gathin.tvhome.MainActivity`。
 5. **不要停用、卸载电视原来的桌面**（小米的 PatchWall 必须保留），也不要跑 `tv-app/launcher/build-and-install.sh`，它默认会停用原桌面。小米只认白名单里的包名当桌面，所以包名固定是 `com.ts.launcher`；别的品牌如果设不成，看同型号记录。
 

@@ -10,17 +10,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-/** Question bank from assets/quiz/bank.json (built by build_bank_v2.py). Recently missed knowledge points come up more. */
+/** Question loading and Android persistence adapter for the opt-in quiz policy. */
 public final class Bank {
-    public static final class Item {
-        public String id, subject, kp, ref, question, explanation;
+    public static final class Item extends QuizPolicy.Question {
+        public String question, explanation;
         public String[] options;
         public int answer;
     }
@@ -30,11 +29,33 @@ public final class Bank {
     private final Context ctx;
     private final Map<String, Integer> weight = new HashMap<>();
     private final LinkedList<String> recent = new LinkedList<>();
+    private final boolean masteryEnabled;
+    private final boolean historyHealthy;
+    private final QuizProgress progress;
+    private final QuizPolicy policy;
+    private QuizProgress.Assessment lastAssessment;
 
-    public Bank(Context c) {
+    public Bank(Context c) { this(c, false); }
+
+    public Bank(Context c, boolean masteryEnabled) {
         ctx = c.getApplicationContext();
         load(ctx);
         SharedPreferences p = GateStore.prefs(ctx);
+        QuizProgress restored;
+        boolean healthy = true;
+        try {
+            restored = QuizProgress.restore(p.getString(QuizProgress.PREF_KEY, ""));
+        } catch (IllegalArgumentException invalid) {
+            // Retain the stored bytes for recovery; keep the ordinary quiz and parent entry usable.
+            restored = new QuizProgress();
+            healthy = false;
+            try { GateStore.log(ctx, new JSONObject().put("ev", "assessment_history_invalid")); }
+            catch (Exception ignored) { }
+        }
+        historyHealthy = healthy;
+        this.masteryEnabled = masteryEnabled && healthy;
+        progress = restored;
+        policy = new QuizPolicy(progress, this.masteryEnabled, rnd);
         try {
             JSONObject w = new JSONObject(p.getString("kpWeight", "{}"));
             for (java.util.Iterator<String> it = w.keys(); it.hasNext(); ) {
@@ -101,53 +122,52 @@ public final class Bank {
         items = null;
     }
 
-    /** Subject plan for one unlock from gate.json "mix" (default 数学 3 + 英语 2), shuffled, so no subject can be skipped. */
-    public List<String> plan(Map<String, Integer> mix) {
-        List<String> s = new ArrayList<>();
-        for (Map.Entry<String, Integer> e : mix.entrySet()) {
-            boolean any = false;
-            for (Item it : items) if (it.subject.equals(e.getKey())) { any = true; break; }
-            if (!any) continue; // a subject with no questions yet is skipped
-            for (int i = 0; i < e.getValue(); i++) s.add(e.getKey());
-        }
-        if (s.isEmpty()) { s.add("数学"); s.add("数学"); s.add("数学"); s.add("英语"); s.add("英语"); }
-        Collections.shuffle(s, rnd);
-        return s;
+    /** Explicit quiz-session boundary. Reuse the same token on every Activity recreation. */
+    public void beginRound(String token) {
+        if (progress.beginRound(token)) saveProgress();
     }
 
+    /** Legacy non-balanced mix remains the default. */
+    public List<String> plan(Map<String, Integer> mix) { return plan(mix, false); }
+
+    public List<String> plan(Map<String, Integer> mix, boolean balanced) {
+        List<String> result = policy.plan(items, mix, balanced && historyHealthy);
+        if (progress.active()) saveProgress();
+        return result;
+    }
+
+    /** Null means this subject currently has no selectable points; never index an empty pool. */
     public Item next(String subject) {
-        // weighted pick of a knowledge point within the subject, then an item not asked recently
-        Map<String, List<Item>> byKp = new HashMap<>();
-        for (Item it : items) if (it.subject.equals(subject)) byKp.computeIfAbsent(it.kp, k -> new ArrayList<>()).add(it);
-        List<String> kps = new ArrayList<>(byKp.keySet());
-        int total = 0;
-        for (String k : kps) total += 1 + 3 * w(k);
-        int r = rnd.nextInt(Math.max(total, 1));
-        String kp = kps.get(0);
-        for (String k : kps) {
-            r -= 1 + 3 * w(k);
-            if (r < 0) { kp = k; break; }
-        }
-        return fresh(byKp.get(kp), subject);
+        Item result = policy.next(items, subject, recent, weight);
+        if (masteryEnabled) saveProgress();
+        return result;
     }
 
-    /** After a wrong answer: another item on the same knowledge point (or same notebook entry, or same subject). */
     public Item similar(Item wrong) {
-        List<Item> same = new ArrayList<>();
-        for (Item it : items) if (it.kp.equals(wrong.kp) && !it.id.equals(wrong.id)) same.add(it);
-        if (same.isEmpty()) for (Item it : items) if (it.ref.equals(wrong.ref) && it.subject.equals(wrong.subject) && !it.id.equals(wrong.id)) same.add(it);
-        if (same.isEmpty()) return next(wrong.subject);
-        return fresh(same, wrong.subject);
+        Item result = policy.similar(items, wrong, recent, weight);
+        if (masteryEnabled) saveProgress();
+        return result;
     }
 
-    private Item fresh(List<Item> pool, String subject) {
-        List<Item> cands = new ArrayList<>();
-        for (Item it : pool) if (!recent.contains(it.id)) cands.add(it);
-        if (cands.isEmpty()) cands = pool;
-        Item pick = cands.get(rnd.nextInt(cands.size()));
-        recent.add(pick.id);
-        while (recent.size() > 120) recent.removeFirst();
-        return pick;
+    public boolean isMastered(Item item) {
+        return masteryEnabled && progress.isMastered(item.subject, item.kp);
+    }
+
+    /** Positive exemption check; a missing configured subject/broken bank is NOT evidence of mastery. */
+    public boolean allMastered(Map<String, Integer> mix) {
+        return masteryEnabled && policy.allMastered(items, mix);
+    }
+
+    public boolean wasLastAssessmentEligible() { return lastAssessment != null && lastAssessment.eligible; }
+    public QuizProgress.Assessment lastAssessment() { return lastAssessment; }
+
+    private void saveProgress() {
+        if (!historyHealthy) return;
+        // Synchronous: a process stop must not invent a fresh round or lose a just-earned mastery latch.
+        if (!GateStore.prefs(ctx).edit().putString(QuizProgress.PREF_KEY, progress.encode())
+                .putString("recent", new JSONArray(recent).toString()).commit()) {
+            throw new IllegalStateException("assessment history could not be saved");
+        }
     }
 
     private int w(String kp) {
@@ -156,6 +176,19 @@ public final class Bank {
     }
 
     public void record(Item it, boolean ok) {
+        lastAssessment = masteryEnabled ? progress.record(it.subject, it.kp, it.id, ok) : null;
+        if (masteryEnabled) saveProgress();
+        try {
+            JSONObject event = new JSONObject().put("ev", "assessment").put("version", 1)
+                    .put("subject", it.subject).put("kp", it.kp).put("id", it.id).put("ok", ok)
+                    .put("eligible", wasLastAssessmentEligible()).put("mastery_enabled", masteryEnabled);
+            if (lastAssessment != null) {
+                event.put("round", lastAssessment.round).put("reason", lastAssessment.reason)
+                        .put("streak", lastAssessment.streak).put("assessments", lastAssessment.assessments)
+                        .put("distinct_ids", lastAssessment.distinctIds).put("mastered", lastAssessment.mastered);
+            } else event.put("reason", "mastery_disabled");
+            GateStore.log(ctx, event);
+        } catch (Exception ignored) { }
         int v = w(it.kp);
         weight.put(it.kp, ok ? Math.max(0, v - 1) : Math.min(6, v + 2));
         try {
