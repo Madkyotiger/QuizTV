@@ -4,6 +4,8 @@
 
 这是给自家小米电视做的家庭项目，基于开源电视桌面 [CleanYourTV](https://github.com/Gathin23/cleanyourtv)（MIT）改的。在一台 Xiaomi MiTV-MFTP0（Android TV 9）上实测过；其他机型没测过，用之前先看“为什么能拦住所有入口”这一节，确认你的电视也是这样。
 
+**第一次用、不懂技术？先看 [新手教程](新手教程.md)。**
+
 > English: QuizTV is a parental "answer quiz questions before watching" gate for Android TV, built into a fork of the CleanYourTV launcher. Tested on one Xiaomi TV. Chinese-first docs; questions target Shanghai grade-2 math and English.
 
 ## 孩子看到的样子

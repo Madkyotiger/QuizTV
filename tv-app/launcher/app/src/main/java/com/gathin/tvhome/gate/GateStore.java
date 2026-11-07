@@ -21,6 +21,8 @@ public final class GateStore {
     private static String pin = "2580";
     private static String childName = "宝贝";
     private static boolean enabled = true;
+    private static boolean balancedQuiz;
+    private static boolean masteryEnabled;
     private static long enableAfter = 0;
     private static long testUntil = 0;
     private static String[] windows = new String[0];
@@ -119,6 +121,8 @@ public final class GateStore {
             int n = in.read(b);
             JSONObject o = new JSONObject(new String(b, 0, Math.max(n, 0), StandardCharsets.UTF_8));
             enabled = o.optBoolean("enabled", true);
+            balancedQuiz = o.optBoolean("balanced_quiz", false);
+            masteryEnabled = o.optBoolean("mastery_enabled", false);
             String after = o.optString("enable_after", "");
             enableAfter = after.isEmpty() ? 0 : new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).parse(after).getTime();
             String test = o.optString("test_until", "");
@@ -194,6 +198,16 @@ public final class GateStore {
         Calendar cal = Calendar.getInstance();
         int dow = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1;
         return GateRules.nextSlotToday(slots, dow, cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE));
+    }
+
+    public static synchronized boolean balancedQuiz(Context c) {
+        rules(c);
+        return balancedQuiz;
+    }
+
+    public static synchronized boolean masteryEnabled(Context c) {
+        rules(c);
+        return masteryEnabled;
     }
 
     public static synchronized java.util.Map<String, Integer> mix(Context c) {

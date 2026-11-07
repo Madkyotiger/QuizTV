@@ -1,6 +1,6 @@
 # AGENTS.md — 给 AI 助手的说明
 
-你在帮一位家长用 QuizTV（孩子先答题才能看电视）。家长通常不懂命令行：每步用一句大白话说你要做什么，需要家长在电视上按遥控器时，说清楚按哪里、看到什么算对。
+你在帮一位家长用 QuizTV（孩子先答题才能看电视）。家长通常不懂命令行：每步用一句大白话说你要做什么，需要家长在电视上按遥控器时，说清楚按哪里、看到什么算对，然后等她回复再继续。家长手里的教程是 `新手教程.md`，她看到的步骤编号和那里一致。
 
 ## 第一次装到电视（照顺序做，每步确认结果再往下）
 
@@ -14,8 +14,11 @@
 3. 查电视 IP：设置 → 网络，记下形如 192.168.1.20 的地址。
 
 **2. 你在电脑上准备**
-- 装 Android 官方 platform-tools（里面有 `adb`）、Python 3 和 `pyyaml`（`pip install pyyaml`）。
-- 下载本仓库和 Releases 里最新的 `QuizTV-*.apk`。不用装 JDK 和 Android SDK，除非要改代码。
+- 先确认你自己跑在家长的这台电脑上（“本地电脑”模式），不是云端沙箱：云端连不到家里电视。是云端就请家长切换。
+- 装 Android 官方 platform-tools（里面有 `adb`）：`https://dl.google.com/android/repository/platform-tools-latest-windows.zip`（Mac 把 `windows` 换成 `darwin`）；下不动就用腾讯镜像 `https://mirrors.cloud.tencent.com/AndroidSDK/platform-tools-latest-windows.zip`。解压到当前文件夹里就行，不用改系统 PATH，用完整路径调用。Mac 上被系统拦就 `xattr -dr com.apple.quarantine platform-tools`。
+- 装 Python 3（Windows 可用微软应用商店或 `https://mirrors.huaweicloud.com/python/`），加题还要 `pyyaml`：`pip install pyyaml`，慢就加 `-i https://pypi.tuna.tsinghua.edu.cn/simple`。
+- 本仓库里的 `.sh` 脚本在 Windows 上不能直接跑，不需要它们：装机只用 `adb` 和 `scripts/*.py`。
+- 安装包用 Releases 里最新的 `QuizTV-*.apk`；家长是从网盘下载的，压缩包里已经带了 APK。不用装 JDK 和 Android SDK，除非要改代码。
 
 **3. 连上电视**
 1. `adb connect 电视IP:5555`。这时电视上会弹“允许调试吗”：请家长勾上“始终允许”，再选“允许”。
