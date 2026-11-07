@@ -7,7 +7,6 @@
                                weekday_cap_min（周一到周五每天上限） weekend_cap_min（周六日每天上限）
                                gap_reset_min（关机多久算新的一段） windows（生效时段，如 "FRI 16:00-SUN 19:00;SAT 08:00-SAT 12:00"）
                                mix（每次各科几道，如 "数学:2,英语:2,语文:1"） enabled（true/false） test_until（"YYYY-MM-DD HH:MM"，到点前一直生效）
-                               balanced_quiz（各科均分且轮换余题） mastery_enabled（已通过知识点退出抽题）
                                child_name（界面上怎么称呼孩子） pin（四位家长密码，只写不回显）
   reset                        清零计时和“最近答错”记录（测试后用），答题记录另存
   push                         把当前规则原样推送并读回
@@ -86,7 +85,7 @@ def cmd_set(pairs):
                 c.pop(k)
         elif k == "mix":
             c[k] = {s.split(":")[0].strip(): int(s.split(":")[1]) for s in v.split(",") if s.strip()}
-        elif k in ("enabled", "balanced_quiz", "mastery_enabled"):
+        elif k == "enabled":
             c[k] = v.lower() in ("1", "true", "yes", "on")
         elif k in ("test_until", "enable_after"):
             if v:

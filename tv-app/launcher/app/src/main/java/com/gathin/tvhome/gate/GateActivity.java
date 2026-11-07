@@ -50,7 +50,6 @@ public final class GateActivity extends Activity {
     /** Survives the activity being recreated or re-shown during one quiz. */
     private static final class Progress {
         final QuizIntro intro = new QuizIntro();
-        final String roundToken = java.util.UUID.randomUUID().toString();
         List<String> plan;
         int stars, slot, wrongInRow;
         Bank.Item current;
@@ -78,7 +77,7 @@ public final class GateActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         GateStore.mix(this); // picks up a changed custom-bank.json
-        bank = new Bank(this, GateStore.masteryEnabled(this));
+        bank = new Bank(this);
         GatePalette.use(GateStore.theme(this));
         root = new FrameLayout(this);
         root.setBackgroundColor(GatePalette.BACKGROUND);
@@ -150,7 +149,6 @@ public final class GateActivity extends Activity {
         if (resumed) visibleMode = mode;
         GatePalette.use(GateStore.theme(this));
         switch (mode) {
-            case NONE: leave(); break;
             case REST: renderRest(); break;
             case LIMIT:
             case WAIT:
@@ -165,31 +163,14 @@ public final class GateActivity extends Activity {
     private void renderQuiz() {
         if (progress == null) {
             progress = new Progress();
-            bank.beginRound(progress.roundToken);
-            progress.plan = bank.plan(GateStore.mix(this), GateStore.balancedQuiz(this));
+            progress.plan = bank.plan(GateStore.mix(this));
             GatePalette.use(GateStore.newRoundTheme(this));
-        } else {
-            bank.beginRound(progress.roundToken);
-        }
-        if (progress.plan.isEmpty()) {
-            if (bank.allMastered(GateStore.mix(this))) celebrate(true);
-            else renderHelp("当前没有可用题目，请家长检查题库。缺少题目不算知识点已通过。");
-            return;
-        }
-        if (progress.stars >= progress.plan.size()) {
-            celebrate();
-            return;
         }
         if (progress.intro.shouldShow(SystemClock.elapsedRealtime())) {
             renderQuizIntro();
             return;
         }
-        if (progress.current == null) progress.current = nextUnmasteredForSlot();
-        if (progress.current == null) {
-            if (bank.allMastered(GateStore.mix(this))) celebrate(true);
-            else renderHelp("暂时没有可用题目，请家长检查题库。已通过的知识点不会为凑题重新出现。");
-            return;
-        }
+        if (progress.current == null) progress.current = bank.next(progress.plan.get(progress.slot % progress.plan.size()));
         Bank.Item it = progress.current;
         answered = false;
 
@@ -251,19 +232,6 @@ public final class GateActivity extends Activity {
 
         setPage(page, "quiz");
         bs[0].requestFocus();
-    }
-
-    private Bank.Item nextUnmasteredForSlot() {
-        String preferred = progress.plan.get(progress.slot % progress.plan.size());
-        Bank.Item it = bank.next(preferred);
-        if (it != null) return it;
-        // A subject can finish mid-round; use another enabled subject instead of a mastered item.
-        for (String subject : GateStore.mix(this).keySet()) {
-            if (subject.equals(preferred)) continue;
-            it = bank.next(subject);
-            if (it != null) return it;
-        }
-        return null;
     }
 
     private void renderQuizIntro() {
@@ -377,15 +345,13 @@ public final class GateActivity extends Activity {
     }
 
     private void onAnswer(int idx, Button[] bs, TextView feedback, TextView expl) {
-        if (answered || mode != GateRules.Screen.QUIZ || progress == null || progress.current == null) return;
+        if (answered) return;
         answered = true;
-        final Progress round = progress;
         Bank.Item it = progress.current;
         boolean ok = idx == it.answer;
         bank.record(it, ok);
         try {
             GateStore.log(this, new JSONObject().put("ev", "answer").put("id", it.id).put("kp", it.kp)
-                    .put("subject", it.subject).put("round_id", round.roundToken)
                     .put("ok", ok).put("chosen", it.options[idx]));
         } catch (Exception ignored) {
         }
@@ -399,9 +365,7 @@ public final class GateActivity extends Activity {
             feedback.setText("答对啦！⭐ 真棒");
             feedback.setTextColor(GatePalette.MINT);
             if (progress.stars >= stars()) {
-                h.postDelayed(() -> {
-                    if (progress == round && mode == GateRules.Screen.QUIZ && !isFinishing()) celebrate();
-                }, 1200);
+                h.postDelayed(this::celebrate, 1200);
             } else {
                 h.postDelayed(this::render, 1500);
             }
@@ -429,30 +393,8 @@ public final class GateActivity extends Activity {
     }
 
     private void celebrate() {
-        celebrate(false);
-    }
-
-    private void celebrate(boolean masteredExemption) {
-        if (progress == null || mode != GateRules.Screen.QUIZ || isFinishing() || isDestroyed()) return;
-        if (!GateStore.enabled(this)) {
-            progress = null;
-            mode = GateRules.Screen.NONE;
-            leave();
-            return;
-        }
-        android.os.PowerManager power = (android.os.PowerManager) getSystemService(POWER_SERVICE);
-        if (!power.isInteractive()) return;
-        long now = System.currentTimeMillis();
         GateRules r = GateStore.rules(this);
-        GateStore.prepareSlot(this, now);
-        GateRules.Screen barrier = QuizCompletionGuard.required(r, now, GateStore.weekend());
-        if (barrier != GateRules.Screen.NONE) {
-            progress = null;
-            mode = barrier;
-            render();
-            return;
-        }
-        if (!r.unlock(now)) {
+        if (!r.unlock(System.currentTimeMillis())) {
             progress = null;
             mode = GateRules.Screen.REST;
             render();
@@ -462,15 +404,13 @@ public final class GateActivity extends Activity {
         LinearLayout page = column(48, 48);
         page.setGravity(Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM);
         page.setPadding(dp(48), dp(48), dp(48), dp(110));
-        page.addView(text(masteredExemption ? "这些知识点已通过啦" : "太棒啦！星星集齐了", 44, GatePalette.PINK, true));
-        if (masteredExemption)
-            page.addView(text("这轮不用重复答题啦", 26, GatePalette.TEXT, false));
+        page.addView(text("太棒啦！星星集齐了", 44, GatePalette.PINK, true));
         long left = GateStore.rules(this).watchLeftMs(System.currentTimeMillis(), GateStore.weekend());
         long mins = Math.max(1, (left + GateRules.MIN - 1) / GateRules.MIN);
         page.addView(text("去看电视吧，这一次可以看 " + mins + " 分钟哦", 28, GatePalette.TEXT, false));
         setPage(page, "intro");
         try {
-            GateStore.log(this, new JSONObject().put("ev", "unlock").put("mastery_exempt", masteredExemption));
+            GateStore.log(this, new JSONObject().put("ev", "unlock"));
         } catch (Exception ignored) {
         }
         progress = null;

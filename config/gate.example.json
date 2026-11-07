@@ -1,7 +1,5 @@
 {
  "enabled": true,
- "balanced_quiz": false,
- "mastery_enabled": false,
  "windows": [
   "FRI 16:00-SUN 19:00"
  ],
