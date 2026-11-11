@@ -1,13 +1,13 @@
-"""答题看电视：家里自己加的题目 → 生成朗读音频 → 推到电视，不用重新编译程序。
+"""答题看电视：家里自己加的题目 → 推到电视，不用重新编译程序。
 
 题目写在 ../custom-questions/questions.yaml（格式见该文件开头的说明）。
-用法：python3 -I add_questions.py check   只检查格式，列出有问题的题
-      python3 -I add_questions.py push    检查 → 生成音频 → 推送 custom-bank.json 和音频 → 读回
-      python3 -I add_questions.py push --no-audio  只推文字题库并读回，不生成或上传语音
+用法：python3 -I add_questions.py check   只检查格式，列出有问题的题和太长的题
+      python3 -I add_questions.py push    检查 → 推送 custom-bank.json → 读回
+电视上的题目只显示文字、不朗读，所以不生成语音（以前的 --no-audio 仍然接受，效果一样）。
 同一道题的编号由题目文字决定（K+6 位），改了题目文字会变成新题。
 新科目（比如语文）要出现在答题里，还要用 tvctl.py set mix="数学:2,英语:2,语文:1" 打开。
 """
-import asyncio, hashlib, json, pathlib, random, sys
+import hashlib, json, pathlib, random, sys
 
 import yaml
 
@@ -17,6 +17,24 @@ from quiztv import adb as _adb
 
 SRC = ROOT / "custom-questions" / "questions.yaml"
 OUT = ROOT / "custom-questions" / "build"
+
+
+def width(text):
+    """大约占几个汉字宽：汉字和全角符号算 1，字母数字算半个。"""
+    return sum(1 if ord(ch) > 0x2E80 else 0.5 for ch in text)
+
+
+# 电视答题页放得下的长度（汉字宽）：题目最多 4 行、答案最多 2 行、讲解 3 行；超过会被截掉
+LIMITS = (("question", "题目", 80), ("options", "答案", 40), ("explanation", "讲解", 75))
+
+
+def too_long(item):
+    out = []
+    for key, name, limit in LIMITS:
+        for text in (item[key] if key == "options" else [item[key]]):
+            if width(text) > limit:
+                out.append(f"{name}太长（约 {width(text):.0f} 个字宽，电视上最多放 {limit}）：{text[:24]}…")
+    return out
 
 
 def load_items():
@@ -46,59 +64,28 @@ def load_items():
                           unit=str(q.get("unit") or ""), question=text, options=opts, answer_index=opts.index(ans),
                           explanation=str(q.get("explanation") or f"正确答案是 {ans}。"),
                           tts=str(q.get("read_aloud") or text.replace("___", "空格"))))
+        problems += [f"{where}「{text[:20]}」：{p}" for p in too_long(items[-1])]
     return items, problems
-
-
-async def make_audio(items):
-    import edge_tts
-    adir = OUT / "audio"; adir.mkdir(parents=True, exist_ok=True)
-    sem = asyncio.Semaphore(4)
-
-    async def one(it):
-        out = adir / f"{it['id']}.mp3"
-        if out.exists() and out.stat().st_size > 1000:
-            return
-        voice = "en-US-AvaMultilingualNeural" if it["subject"] == "英语" else "zh-CN-XiaoyiNeural"
-        opts = "；".join(f"{'ABC'[k]}，{o}" for k, o in enumerate(it["options"]))
-        text = f"{it['tts']}。{opts}。".replace("＝", "等于").replace("×", "乘").replace("□", "方框")
-        async with sem:
-            for _ in range(3):
-                try:
-                    await edge_tts.Communicate(text, voice, rate="-10%").save(str(out)); return
-                except Exception:
-                    await asyncio.sleep(2)
-        print("没生成出音频（这题在电视上不会读，能正常答）：", it["question"])
-
-    await asyncio.gather(*(one(it) for it in items))
 
 
 def adb(*a):
     return _adb(*a, check=False, timeout=300)
 
 
-def main(mode, audio=True):
+def main(mode):
     items, problems = load_items()
     for p in problems:
         print("有问题：", p)
     from collections import Counter
     print(f"可用 {len(items)} 题：", dict(Counter(i["subject"] for i in items)))
     if mode != "push":
-        return
+        sys.exit(1 if problems else 0)
     if problems:
         sys.exit("先把上面有问题的题改好再推送。")
     OUT.mkdir(parents=True, exist_ok=True)
     bank = OUT / "custom-bank.json"
     bank.write_text(json.dumps({"version": "custom", "items": items}, ensure_ascii=False), encoding="utf-8")
-    if audio:
-        asyncio.run(make_audio(items))
     connect()  # 连不上会退出；题目已在本地生成好，连上后再运行一次 push 即可
-    if audio:
-        adb("shell", f"mkdir -p {DIR}/audio")
-    for f in (sorted((OUT / "audio").glob("K*.mp3")) if audio else []):
-        if f.stem in {i["id"] for i in items}:
-            r = adb("push", str(f), f"{DIR}/audio/{f.name}")
-            if r.returncode != 0:
-                print("音频推送失败：", f.name)
     r = adb("push", str(bank), f"{DIR}/custom-bank.json")
     if r.returncode != 0:
         sys.exit("题目推送失败：" + r.stderr)
@@ -111,4 +98,4 @@ def main(mode, audio=True):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "check", audio="--no-audio" not in sys.argv[2:])
+    main(sys.argv[1] if len(sys.argv) > 1 else "check")

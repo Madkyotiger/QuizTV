@@ -1,10 +1,10 @@
 """内置题库 v2（上海二年级上）：数学按题型模板批量出题，英语按句型扩充。
 
-用法：python3 -I build_bank_v2.py <项目目录> <电视程序 assets/quiz 目录> [--audio]
-输出：<项目目录>/question-bank-v2.json（全部题目）；assets/quiz/bank.json（电视读）；--audio 时生成 assets/quiz/audio/<id>.mp3。
+用法：python3 -I build_bank_v2.py <项目目录> <电视程序 assets/quiz 目录>
+输出：<项目目录>/question-bank-v2.json（全部题目）；assets/quiz/bank.json（电视读）。题目只显示文字，不生成语音。
 出题规则：三选一；干扰项取孩子常见错法；mistake_ref 记这类题对应的错题编号（家里自己的错题本，— 表示教材巩固）。
 """
-import asyncio, json, pathlib, random, sys
+import json, pathlib, random, sys
 
 SEED = 20261104
 rng = random.Random(SEED)
@@ -271,33 +271,3 @@ bank = dict(version="v2-2026-11-04", seed=SEED, items=items)
 from collections import Counter
 print("total", len(items), Counter(i["subject"] for i in items))
 print(Counter((i["subject"], i["kp"]) for i in items).most_common())
-
-if "--audio" in sys.argv:
-    import edge_tts
-    adir = assets / "audio"; adir.mkdir(exist_ok=True)
-
-    def speak_text(it):
-        letters = "ABC"
-        opts = "；".join(f"{letters[k]}，{o}" for k, o in enumerate(it["options"]))
-        return f"{it['tts']}。{opts}。"
-
-    async def one(it, sem):
-        out = adir / f"{it['id']}.mp3"
-        if out.exists() and out.stat().st_size > 1000:
-            return
-        voice = "zh-CN-XiaoyiNeural" if it["subject"] == M else "en-US-AvaMultilingualNeural"
-        async with sem:
-            for attempt in range(3):
-                try:
-                    await edge_tts.Communicate(speak_text(it).replace("＝", "等于").replace("×", "乘").replace("－", "减").replace("＋", "加").replace("□", "方框"),
-                                               voice, rate="-10%").save(str(out))
-                    return
-                except Exception as e:
-                    await asyncio.sleep(2)
-            print("audio failed", it["id"])
-
-    async def main():
-        sem = asyncio.Semaphore(6)
-        await asyncio.gather(*(one(it, sem) for it in items))
-    asyncio.run(main())
-    print("audio files", len(list(adir.glob("*.mp3"))))

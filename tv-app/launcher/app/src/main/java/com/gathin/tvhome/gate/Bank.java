@@ -117,6 +117,12 @@ public final class Bank {
         }
     }
 
+    /** Every loaded question, built-in and family-added (GateLayoutTest lays each one out). */
+    static synchronized List<Item> all(Context c) {
+        load(c.getApplicationContext());
+        return new ArrayList<>(items);
+    }
+
     /** Reload on next use (custom-bank.json changed). */
     public static synchronized void invalidate() {
         items = null;

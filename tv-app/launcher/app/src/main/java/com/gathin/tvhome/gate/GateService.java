@@ -150,7 +150,7 @@ public final class GateService extends Service {
 
     private void toast(String text) {
         GatePalette.use(GateStore.theme(this));
-        Toast t = Toast.makeText(this, "🐰 " + text, Toast.LENGTH_LONG);
+        Toast t = Toast.makeText(this, GatePalette.MASCOT + " " + text, Toast.LENGTH_LONG);
         View view = t.getView();
         if (view != null) {
             float density = getResources().getDisplayMetrics().density;

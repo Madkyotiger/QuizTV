@@ -85,13 +85,21 @@ public final class GateStore {
         return prefs(c).getString("theme", "star");
     }
 
-    /** A new quiz round picks a theme and a voice at random (2026-11-07: two of each). */
+    /** A new quiz round picks a theme (never the one just seen) and a voice at random. */
     public static String newRoundTheme(Context c) {
         java.util.Random rnd = new java.util.Random();
-        String t = GatePalette.THEMES[rnd.nextInt(GatePalette.THEMES.length)];
+        String t = nextTheme(theme(c), rnd.nextInt(GatePalette.THEMES.length - 1));
         String v = VOICES[rnd.nextInt(VOICES.length)];
         prefs(c).edit().putString("theme", t).putString("voice", v).apply();
         return t;
+    }
+
+    /** The pick-th theme after the previous one, skipping the previous one itself (pick: 0 .. THEMES.length - 2). */
+    static String nextTheme(String previous, int pick) {
+        String[] all = GatePalette.THEMES;
+        int at = java.util.Arrays.asList(all).indexOf(previous);
+        if (at < 0) return all[pick % all.length];
+        return all[(at + 1 + pick % (all.length - 1)) % all.length];
     }
 
     /** "" = the first voice (assets/quiz/audio/), "sister" = the gentler young-sister voice (audio/sister/). */

@@ -23,6 +23,7 @@ from quiztv import DIR, ROOT, adb, connect, record
 CFG = ROOT / "config" / "gate.json"
 SECRET = ROOT / "config" / "secret.json"
 INT_KEYS = {"session_min", "rest_min", "weekday_cap_min", "weekend_cap_min", "gap_reset_min", "slot_min"}
+DAYS = ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
 
 
 def load():
@@ -66,10 +67,16 @@ def validate(c):
     if "pin" in c and not (len(str(c["pin"])) == 4 and str(c["pin"]).isdigit()):
         sys.exit("家长密码要是四位数字")
     for w in c.get("windows", []) + c.get("slots", []):
-        a, b = [x.strip().split() for x in w.split("-")]
-        for d, hm in (a, b):
-            assert d.upper() in ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"), w
-            h, m = hm.split(":"); assert 0 <= int(h) < 24 and 0 <= int(m) < 60, w
+        try:
+            a, b = [x.strip().split() for x in w.split("-")]
+            if len(b) == 1 and w in c.get("slots", []):
+                b = [a[0]] + b  # "SAT 08:00-11:30"：结束时间不写星期就是同一天
+            for d, hm in (a, b):
+                h, m = hm.split(":")
+                if d.upper() not in DAYS or not (0 <= int(h) < 24 and 0 <= int(m) < 60):
+                    raise ValueError(w)
+        except ValueError:
+            sys.exit(f"时段写法不对：{w}（要像 FRI 16:00-SUN 19:00，星期用 {' '.join(DAYS)}）")
     if "mix" in c and (not c["mix"] or sum(c["mix"].values()) > 10):
         sys.exit("mix 至少一科、合计不超过 10 道")
 

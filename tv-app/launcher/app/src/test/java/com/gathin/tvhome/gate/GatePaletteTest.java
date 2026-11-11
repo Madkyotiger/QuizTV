@@ -52,7 +52,7 @@ public class GatePaletteTest {
     @Test public void accentFeedbackAndRemoteFocusStayVisible() {
         for (String t : GatePalette.THEMES) {
             GatePalette.use(t);
-            for (int c : new int[]{GatePalette.PINK, GatePalette.MINT, GatePalette.SKY,
+            for (int c : new int[]{GatePalette.ACCENT, GatePalette.MINT, GatePalette.SKY,
                     GatePalette.STAR, GatePalette.ERROR_TEXT}) {
                 assertTrue(t + " accent text contrast", contrast(c, GatePalette.PANEL) >= 4.5);
                 assertTrue(t + " focus outline contrast", contrast(c, GatePalette.FOCUS) >= 3.0);
@@ -62,9 +62,27 @@ public class GatePaletteTest {
     @Test public void unknownThemeFallsBackToStar() {
         GatePalette.use("nope");
         assertEquals("star", GatePalette.id);
-        GatePalette.use("forest");
-        assertEquals("forest", GatePalette.id);
+        for (String t : GatePalette.THEMES) {
+            GatePalette.use(t);
+            assertEquals(t, GatePalette.id);
+            assertFalse(t, GatePalette.MASCOT.isEmpty());
+        }
         GatePalette.use("star");
+    }
+    @Test public void aNewRoundNeverRepeatsTheThemeJustSeen() {
+        int n = GatePalette.THEMES.length;
+        assertTrue(n >= 2);
+        for (String previous : GatePalette.THEMES) {
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (int pick = 0; pick < n - 1; pick++) {
+                String next = GateStore.nextTheme(previous, pick);
+                assertTrue(GatePalette.known(next));
+                assertNotEquals(previous, next);
+                seen.add(next);
+            }
+            assertEquals("every other theme can come up", n - 1, seen.size());
+        }
+        assertTrue(GatePalette.known(GateStore.nextTheme("gone-theme", 1)));
     }
     @Test public void withAlphaKeepsColour() {
         assertEquals(0x80123456, GatePalette.withAlpha(0xFF123456, 0x80));

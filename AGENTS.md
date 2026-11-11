@@ -6,7 +6,7 @@
 
 **0. 先判断能不能装**
 - 电视得是安卓系统（Android 8 及以上；小米、红米、海信、TCL、长虹等大多是）。华为鸿蒙智慧屏、苹果电视、三星／LG 自家系统装不了，直接告诉家长。
-- 问家长电视品牌和型号（设置 →“关于”里有），在 `tv-app/docs/devices/` 和 `tv-app/examples/` 找同型号记录，有就照它的做法，尤其是设默认桌面那一步。
+- 问家长电视品牌和型号（设置 →“关于”里有），在 `tv-app/docs/devices/` 和 `tv-app/examples/` 找同型号记录，只参考其中“默认桌面能不能换、怎么换”的部分，尤其是设默认桌面那一步；记录里的 `debloat.txt` 是上游项目清理电视用的停用清单，装 QuizTV 不需要，不要照着停用电视自带的程序。
 
 **1. 家长在电视上用遥控器做（你一句一句告诉她）**
 1. 电视连家里 Wi-Fi，和电脑同一个网络（不能是“访客网络”）。
@@ -29,7 +29,7 @@
 2. 记下原来的桌面，回退用：`adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME`，最后一行就是。
 3. `adb install -r QuizTV-*.apk`。小米上如果被拒绝安装，请家长在 设置 → 账号与安全 打开“安装未知来源的应用”再装。
 4. `adb shell cmd package set-home-activity --user 0 com.ts.launcher/com.gathin.tvhome.MainActivity`，再跑第 2 步的命令，最后一行要变成 `com.ts.launcher/com.gathin.tvhome.MainActivity`。
-5. **不要停用、卸载电视原来的桌面**（小米的 PatchWall 必须保留），也不要跑 `tv-app/launcher/build-and-install.sh`，它默认会停用原桌面。小米只认白名单里的包名当桌面，所以包名固定是 `com.ts.launcher`；别的品牌如果设不成，看同型号记录。
+5. **不要停用、卸载电视原来的桌面**（小米的 PatchWall 必须保留），同型号记录里提到的上游安装脚本 `build-and-install.sh` 本仓库没有带（它默认会停用原桌面），不要去上游找来跑。小米只认白名单里的包名当桌面，所以包名固定是 `com.ts.launcher`；别的品牌如果设不成，看同型号记录。
 
 **5. 写设置并推到电视**
 1. 复制 `config/device.example.env`、`config/gate.example.json`、`config/secret.example.json`，去掉 `.example`。
@@ -53,7 +53,7 @@
 
 | 家长说 | 你做 |
 |---|---|
-| 按错题出题 | 读家长给的错题（照片、文字都行），写进 `custom-questions/questions.yaml`（格式见 `questions.example.yaml`）：同一知识点换数字和情境出新题，不照抄原题；错误选项用孩子真会犯的错；讲解一两句。然后 `add_questions.py check`，通过后 `add_questions.py push --no-audio`。新科目要 `tvctl.py set mix=...` 才会出现 |
+| 按错题出题 | 读家长给的错题（照片、文字都行），写进 `custom-questions/questions.yaml`（格式见 `questions.example.yaml`）：同一知识点换数字和情境出新题，不照抄原题；错误选项用孩子真会犯的错；讲解一两句。然后 `add_questions.py check`（太长、电视上放不下的题会指出来），通过后 `add_questions.py push`。新科目要 `tvctl.py set mix=...` 才会出现 |
 | 改时间／每次几道题 | `tvctl.py set ...`，键见 README“规则”表；改完看输出里的“读回一致” |
 | 孩子说电视坏了／看不了 | 先 `tvctl.py show` 和 `tvctl.py log 30` 看是不是规则本来就在锁（时段外、到上限），再判断 |
 | 升级到新版 | 下载 Releases 最新 APK，`adb install -r`（同一把签名，设置和记录保留），再 `tvctl.py show` |

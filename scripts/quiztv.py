@@ -78,6 +78,7 @@ def record(message, *paths):
         cmd = ["git", "-C", str(ROOT), "-c", "user.name=quiztv", "-c", "user.email=quiztv@family.local", "commit", "-q", "-m", message]
         if _author():
             cmd += ["--author", _author()]
+        cmd += ["--", *rel]  # 只提交这次改的文件：别人（另一个 Agent）已暂存、还没提交的东西不跟着进这一笔
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         if r.returncode == 0:
             print("已记入 git：" + message)
