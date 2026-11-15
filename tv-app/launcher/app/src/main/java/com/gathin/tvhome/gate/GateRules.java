@@ -44,7 +44,7 @@ public final class GateRules {
     public long bonusUntil;
 
     public Warn lastWarn = Warn.NONE;
-    /** True on the tick where watching just ended at a slot end or the daily cap: show the goodbye page first. */
+    /** True on the tick where watching just ended (session, slot end or daily cap): show the goodbye page first. */
     public boolean justEnded;
 
     public long capMs(boolean weekend) {
@@ -120,6 +120,7 @@ public final class GateRules {
             unlocked = false;
             sessionUsedMs = 0;
             restUntil = now + restMs;
+            justEnded = wasWatching; // a full session also ends with the goodbye page, then the rest page
             return Screen.REST;
         }
         if (dayUsedMs >= cap) {
@@ -224,6 +225,17 @@ public final class GateRules {
     }
 
     /** Start "HH:MM" of the next slot later the same day, or null. */
+    /**
+     * When the child may watch again after a rest ending at restEndMinute today: "HH:mm", or null when nothing is left
+     * today (rest runs past midnight, or past the last slot). No slots configured: the rest end itself.
+     */
+    public static String afterRest(String[] slots, int dow, int restEndMinute) {
+        if (restEndMinute >= 1440) return null;
+        String at = String.format(java.util.Locale.US, "%02d:%02d", restEndMinute / 60, restEndMinute % 60);
+        if (slots == null || slots.length == 0 || slotIndex(slots, dow, restEndMinute) >= 0) return at;
+        return nextSlotToday(slots, dow, restEndMinute);
+    }
+
     public static String nextSlotToday(String[] slots, int dow, int minuteOfDay) {
         int t = (dow - 1) * 1440 + minuteOfDay, best = Integer.MAX_VALUE;
         String label = null;

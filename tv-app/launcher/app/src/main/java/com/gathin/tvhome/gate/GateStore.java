@@ -204,6 +204,18 @@ public final class GateStore {
         r.slotEndAt = minuteStart + GateRules.minutesToSlotEnd(slots, i, dow, min) * GateRules.MIN;
     }
 
+    /** After the current rest: "17:42" when watching is possible again today, else null (then the screen says "明天"). */
+    public static synchronized String afterRestToday(Context c) {
+        GateRules r = rules(c);
+        Calendar now = Calendar.getInstance(), end = Calendar.getInstance();
+        end.setTimeInMillis(r.restUntil);
+        if (end.get(Calendar.YEAR) != now.get(Calendar.YEAR) || end.get(Calendar.DAY_OF_YEAR) != now.get(Calendar.DAY_OF_YEAR)) return null;
+        int min = end.get(Calendar.HOUR_OF_DAY) * 60 + end.get(Calendar.MINUTE)
+                + (end.get(Calendar.SECOND) > 0 || end.get(Calendar.MILLISECOND) > 0 ? 1 : 0); // never say a time that is still resting
+        int dow = (now.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1;
+        return GateRules.afterRest(slots, dow, min);
+    }
+
     /** "13:30" when there is another slot later today, else null (then the screen says "明天"). */
     public static synchronized String nextSlotToday(Context c) {
         rules(c);

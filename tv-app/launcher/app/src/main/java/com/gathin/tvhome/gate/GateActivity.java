@@ -164,7 +164,10 @@ public final class GateActivity extends Activity {
         GatePalette.use(GateStore.theme(this));
         switch (mode) {
             case NONE: leave(); break;
-            case REST: renderRest(); break;
+            case REST:
+                if (SystemClock.elapsedRealtime() < byeUntil) renderBye();
+                else renderRest();
+                break;
             case LIMIT:
             case WAIT:
                 if (SystemClock.elapsedRealtime() < byeUntil) renderBye();
@@ -727,27 +730,12 @@ public final class GateActivity extends Activity {
         h.postDelayed(ticker, 1000);
     }
 
+    /**
+     * Mandatory rest after a full session: like the wait page (say when to come back, three things to do, then nearly
+     * dark) instead of a countdown to stare at. Leaving the screen is the point of the rest.
+     */
     void renderRest() {
-        LinearLayout page = page();
-        page.addView(pageBar("让眼睛休息一下"));
-        LinearLayout c = lowerColumn();
-        TextView left = GateUi.display(this, "", 54, GatePalette.ACCENT);
-        c.addView(left, below(0));
-        c.addView(GateUi.body(this, "去窗边看看远处的树  ·  喝口水  ·  跳一跳", 28, GatePalette.TEXT), below(10));
-        c.addView(GateUi.body(this, "休息好了，答完题就能接着看", 22, GatePalette.MUTED), below(6));
-        page.addView(c, new LinearLayout.LayoutParams(MATCH, 0, 1));
-        page.addView(parentRow());
-        setPage(page, "rest", true);
-        ticker = new Runnable() {
-            @Override
-            public void run() {
-                long ms = GateStore.rules(GateActivity.this).restLeftMs(System.currentTimeMillis());
-                long s = (ms + 999) / 1000;
-                left.setText(String.format(java.util.Locale.US, "还要休息 %02d:%02d", s / 60, s % 60));
-                if (ms > 0) h.postDelayed(this, 1000);
-            }
-        };
-        h.post(ticker);
+        renderDone("电视时间", GateStore.afterRestToday(this));
     }
 
     private void renderLimit() {

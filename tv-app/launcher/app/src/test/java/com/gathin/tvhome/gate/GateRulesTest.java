@@ -177,4 +177,63 @@ public class GateRulesTest {
         assertFalse(GateRules.inWindows(w, 7, 19 * 60));      // Sunday 19:00
         assertTrue(GateRules.inWindows(new String[]{"SUN 20:00-MON 08:00"}, 1, 7 * 60)); // wraps
     }
+
+    // Family rule proposal 2026-11-15: one viewing range per day, 30-minute sessions, 60-minute rests, daily cap.
+    private GateRules dayRange(long now) {
+        GateRules r = new GateRules();
+        r.sessionMs = 30 * MIN; r.restMs = 60 * MIN; r.capWeekendMs = 120 * MIN; r.slotMs = 120 * MIN;
+        r.slotKey = "2026-11-14#0"; r.slotEndAt = now + 12 * 60 * MIN;
+        return r;
+    }
+
+    @Test public void fullSessionEndsWithOneGoodbye() {
+        long[] now = {1_000_000};
+        GateRules r = dayRange(now[0]);
+        r.tick(now[0], true, "2026-11-04", true);
+        r.unlock(now[0]);
+        int byes = 0;
+        GateRules.Screen s = GateRules.Screen.NONE;
+        for (int i = 0; i < 40 * 60; i++) { now[0] += S; s = r.tick(now[0], true, "2026-11-04", true); if (r.justEnded) byes++; }
+        assertEquals(GateRules.Screen.REST, s);
+        assertEquals(1, byes);
+    }
+
+    @Test public void dayRangeAllowsWatchingAnytimeUntilTheCap() {
+        long[] now = {1_000_000};
+        GateRules r = dayRange(now[0]);
+        r.tick(now[0], true, "2026-11-04", true);
+        for (int k = 0; k < 3; k++) {
+            r.unlock(now[0]);
+            assertEquals(GateRules.Screen.NONE, run(r, now, 29 * MIN, true));
+            assertEquals(GateRules.Screen.REST, run(r, now, 1 * MIN + 2 * S, true));
+            assertEquals(GateRules.Screen.REST, run(r, now, 59 * MIN, true));
+            assertEquals(GateRules.Screen.QUIZ, run(r, now, 1 * MIN + 2 * S, true)); // rest over: quiz first
+        }
+        r.unlock(now[0]);
+        assertEquals(GateRules.Screen.LIMIT, run(r, now, 31 * MIN, true)); // fourth session hits 120
+    }
+
+    @Test public void parentPlusTwentyAfterASessionGivesTwentyMoreWithoutQuiz() {
+        long[] now = {1_000_000};
+        GateRules r = dayRange(now[0]);
+        r.tick(now[0], true, "2026-11-04", true);
+        r.unlock(now[0]);
+        assertEquals(GateRules.Screen.REST, run(r, now, 30 * MIN + 2 * S, true));
+        // what the parent menu does for "+20"
+        r.addBonus(20 * MIN);
+        r.unlock(now[0]);
+        r.sessionUsedMs = Math.max(0, r.sessionMs - 20 * MIN);
+        assertEquals(GateRules.Screen.NONE, run(r, now, 19 * MIN, true));
+        assertEquals(GateRules.Screen.REST, run(r, now, 1 * MIN + 2 * S, true)); // 50 minutes in a row, then rest
+    }
+
+    @Test public void afterRestSaysWhenToComeBack() {
+        String[] day = {"SAT 08:30-SAT 20:30"};
+        assertEquals("17:42", GateRules.afterRest(day, 6, 17 * 60 + 42));
+        assertEquals(null, GateRules.afterRest(day, 6, 20 * 60 + 45));   // past the end of today's range
+        assertEquals("20:45", GateRules.afterRest(new String[0], 6, 20 * 60 + 45));
+        assertEquals(null, GateRules.afterRest(day, 6, 1440));
+        String[] split = {"SAT 13:00-SAT 17:00", "SAT 17:30-SAT 20:30"};
+        assertEquals("17:30", GateRules.afterRest(split, 6, 17 * 60 + 10)); // rest ends between slots
+    }
 }
